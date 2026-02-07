@@ -1,0 +1,211 @@
+# API Contract: The Evolution of Todo - Phase IV
+
+**Date**: 2026-01-21
+**Service**: Backend API (FastAPI with Cohere integration)
+**Version**: 1.0.0
+
+## Overview
+
+This document describes the API contract for the backend service of The Evolution of Todo application. The backend is a FastAPI application that provides RESTful endpoints for todo management and integrates with Cohere for AI-powered chatbot functionality.
+
+## Base URL
+
+```
+http://todo-backend:8000/api/v1
+```
+
+## Authentication
+
+All API requests require authentication using JWT tokens obtained from the authentication service.
+
+Header: `Authorization: Bearer {jwt_token}`
+
+## Endpoints
+
+### Todo Management
+
+#### GET /todos
+Retrieve all todos for the authenticated user.
+
+**Response:**
+```
+Status: 200 OK
+Content-Type: application/json
+
+[
+  {
+    "id": "uuid-string",
+    "title": "string",
+    "description": "string",
+    "completed": "boolean",
+    "created_at": "ISO 8601 datetime",
+    "updated_at": "ISO 8601 datetime"
+  }
+]
+```
+
+**Errors:**
+- 401: Unauthorized
+- 500: Internal Server Error
+
+#### POST /todos
+Create a new todo for the authenticated user.
+
+**Request:**
+```
+Content-Type: application/json
+
+{
+  "title": "string",
+  "description": "string"
+}
+```
+
+**Response:**
+```
+Status: 201 Created
+Content-Type: application/json
+
+{
+  "id": "uuid-string",
+  "title": "string",
+  "description": "string",
+  "completed": false,
+  "created_at": "ISO 8601 datetime",
+  "updated_at": "ISO 8601 datetime"
+}
+```
+
+**Errors:**
+- 400: Invalid request body
+- 401: Unauthorized
+- 500: Internal Server Error
+
+#### PUT /todos/{id}
+Update an existing todo.
+
+**Path Parameters:**
+- id: UUID string of the todo
+
+**Request:**
+```
+Content-Type: application/json
+
+{
+  "title": "string",
+  "description": "string",
+  "completed": "boolean"
+}
+```
+
+**Response:**
+```
+Status: 200 OK
+Content-Type: application/json
+
+{
+  "id": "uuid-string",
+  "title": "string",
+  "description": "string",
+  "completed": "boolean",
+  "created_at": "ISO 8601 datetime",
+  "updated_at": "ISO 8601 datetime"
+}
+```
+
+**Errors:**
+- 400: Invalid request body
+- 401: Unauthorized
+- 404: Todo not found
+- 500: Internal Server Error
+
+#### DELETE /todos/{id}
+Delete a todo.
+
+**Path Parameters:**
+- id: UUID string of the todo
+
+**Response:**
+```
+Status: 204 No Content
+```
+
+**Errors:**
+- 401: Unauthorized
+- 404: Todo not found
+- 500: Internal Server Error
+
+### Chatbot Interaction
+
+#### POST /chat
+Send a message to the AI chatbot and receive a response.
+
+**Request:**
+```
+Content-Type: application/json
+
+{
+  "message": "string",
+  "context": "object (optional)"
+}
+```
+
+**Response:**
+```
+Status: 200 OK
+Content-Type: application/json
+
+{
+  "response": "string",
+  "timestamp": "ISO 8601 datetime"
+}
+```
+
+**Errors:**
+- 400: Invalid request body
+- 401: Unauthorized
+- 500: Internal Server Error
+- 503: Cohere API unavailable
+
+### Health Checks
+
+#### GET /health
+Health check endpoint to verify service availability.
+
+**Response:**
+```
+Status: 200 OK
+Content-Type: application/json
+
+{
+  "status": "healthy",
+  "timestamp": "ISO 8601 datetime",
+  "dependencies": {
+    "database": "connected",
+    "cohere_api": "available"
+  }
+}
+```
+
+## Error Responses
+
+All error responses follow the same structure:
+
+```
+{
+  "detail": "Human-readable error message",
+  "error_code": "string",
+  "timestamp": "ISO 8601 datetime"
+}
+```
+
+## Rate Limiting
+
+All endpoints are subject to rate limiting. Exceeding the rate limit results in a 429 Too Many Requests response.
+
+## Security Considerations
+
+- All endpoints require authentication except for health checks
+- Sensitive data is encrypted in transit using TLS
+- Input validation is performed on all requests
+- API keys for external services (like Cohere) are stored securely in Kubernetes secrets

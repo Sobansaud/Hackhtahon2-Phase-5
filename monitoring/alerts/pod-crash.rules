@@ -1,0 +1,38 @@
+groups:
+- name: pod-crash-alerts
+  rules:
+  - alert: PodCrashLooping
+    expr: rate(kube_pod_container_status_restarts_total[15m]) > 0
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Pod {{ $labels.pod }} is crash looping"
+      description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} is crash looping with {{ $value }} restarts per second over the last 15 minutes."
+
+  - alert: PodNotReady
+    expr: sum by (namespace, pod) (kube_pod_status_ready{condition="true"} == 0) > 0
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Pod {{ $labels.pod }} is not ready"
+      description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has been in a non-ready state for more than 5 minutes."
+
+  - alert: HighCPUUsage
+    expr: (sum(rate(container_cpu_usage_seconds_total{name!="",pod!=""}[5m])) BY (pod, namespace) * 100) > 80
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High CPU usage on pod {{ $labels.pod }}"
+      description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has CPU usage above 80% for more than 5 minutes."
+
+  - alert: HighMemoryUsage
+    expr: (container_memory_working_set_bytes{pod!=""} / container_spec_memory_limit_bytes{pod!=""} * 100) > 80
+    for: 5m
+    labels:
+      severity: warning
+    annotations:
+      summary: "High memory usage on pod {{ $labels.pod }}"
+      description: "Pod {{ $labels.pod }} in namespace {{ $labels.namespace }} has memory usage above 80% for more than 5 minutes."

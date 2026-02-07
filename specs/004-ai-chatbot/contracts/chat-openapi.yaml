@@ -1,0 +1,338 @@
+openapi: 3.1.0
+info:
+  title: AI Todo Chatbot API
+  description: |
+    REST API for AI-powered todo management via natural language conversations.
+    Powered by Cohere's command-r-plus model with MCP-style tool calling.
+  version: 1.0.0
+  contact:
+    name: The Evolution of Todo
+    url: https://github.com/example/todo-app
+
+servers:
+  - url: https://api.todoapp.example.com
+    description: Production server
+  - url: http://localhost:8000
+    description: Local development server
+
+security:
+  - BearerAuth: []
+
+paths:
+  /api/{user_id}/chat:
+    post:
+      summary: Send message to AI chatbot
+      description: |
+        Send a natural language message to the chatbot.
+        The chatbot will parse intent, execute tools if needed,
+        and return a conversational response.
+      operationId: sendChatMessage
+      tags:
+        - Chatbot
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+            description: User ID from JWT token
+          description: |
+            Must match the user_id in the JWT token.
+            All operations are isolated to this user's data.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+      responses:
+        '200':
+          description: Successful chatbot response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid JWT token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: User ID mismatch
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/{user_id}/conversations:
+    get:
+      summary: List user's conversations
+      description: Get all conversations for a user, ordered by recent activity
+      operationId: listConversations
+      tags:
+        - Chatbot
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            minimum: 1
+            maximum: 100
+        - name: offset
+          in: query
+          schema:
+            type: integer
+            default: 0
+            minimum: 0
+      responses:
+        '200':
+          description: List of conversations
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationListResponse'
+
+  /api/{user_id}/conversations/{conversation_id}:
+    get:
+      summary: Get conversation with messages
+      description: Retrieve a specific conversation with all its messages
+      operationId: getConversation
+      tags:
+        - Chatbot
+      parameters:
+        - name: user_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: conversation_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Conversation with messages
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ConversationDetailResponse'
+        '404':
+          description: Conversation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+      properties:
+        conversation_id:
+          type: string
+          format: uuid
+          description: Optional conversation ID to continue
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        message:
+          type: string
+          minLength: 1
+          maxLength: 10000
+          description: User's natural language message
+          example: "Add weekly meeting for Friday"
+
+    ChatResponse:
+      type: object
+      required:
+        - conversation_id
+        - response
+      properties:
+        conversation_id:
+          type: string
+          format: uuid
+          description: Conversation ID (new or existing)
+          example: "550e8400-e29b-41d4-a716-446655440000"
+        response:
+          type: string
+          description: AI's natural language response
+          example: "I've added 'weekly meeting' to your tasks."
+        tool_calls:
+          type: array
+          description: Optional list of executed tool calls for debugging
+          items:
+            $ref: '#/components/schemas/ToolCallInfo'
+
+    ToolCallInfo:
+      type: object
+      required:
+        - tool
+        - params
+        - result
+      properties:
+        tool:
+          type: string
+          description: Name of executed tool
+          enum:
+            - add_task
+            - list_tasks
+            - complete_task
+            - delete_task
+            - update_task
+            - get_current_user
+        params:
+          type: object
+          description: Parameters passed to tool
+          additionalProperties: true
+        result:
+          type: object
+          description: Tool execution result
+          additionalProperties: true
+
+    ConversationListResponse:
+      type: object
+      required:
+        - conversations
+        - total
+      properties:
+        conversations:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationSummary'
+        total:
+          type: integer
+          description: Total number of conversations
+
+    ConversationSummary:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        message_count:
+          type: integer
+
+    ConversationDetailResponse:
+      type: object
+      required:
+        - id
+        - messages
+      properties:
+        id:
+          type: string
+          format: uuid
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+
+    Message:
+      type: object
+      required:
+        - id
+        - role
+        - content
+        - created_at
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum:
+            - user
+            - assistant
+            - system
+        content:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type code
+          enum:
+            - invalid_request
+            - unauthorized
+            - forbidden
+            - not_found
+            - rate_limited
+            - internal_error
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Task not found"
+        details:
+          type: object
+          description: Additional error details (optional)
+
+  examples:
+    ChatRequestExample:
+      summary: Add task message
+      value:
+        message: "Add weekly meeting for Friday"
+    ChatResponseExample:
+      summary: Task added response
+      value:
+        conversation_id: "550e8400-e29b-41d4-a716-446655440000"
+        response: "I've added 'weekly meeting' to your tasks."
+        tool_calls:
+          - tool: add_task
+            params:
+              title: "weekly meeting"
+              description: "Friday"
+              status: "pending"
+            result:
+              id: 123
+              title: "weekly meeting"
+              description: "Friday"
+              status: "pending"

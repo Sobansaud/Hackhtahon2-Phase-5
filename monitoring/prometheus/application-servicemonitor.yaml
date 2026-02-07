@@ -1,0 +1,83 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: application-servicemonitor
+  namespace: monitoring
+  labels:
+    app: application-servicemonitor
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-app  # Adjust label selector as needed
+  namespaceSelector:
+    matchNames:
+      - todo
+      - todo-dev
+  endpoints:
+  - port: http  # This should match the port name in your service
+    path: /metrics  # Adjust path based on your application's metrics endpoint
+    interval: 30s
+    scrapeTimeout: 10s
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_service_name]
+      targetLabel: service
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: backend-servicemonitor
+  namespace: monitoring
+  labels:
+    app: backend-servicemonitor
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-backend
+  namespaceSelector:
+    matchNames:
+      - todo
+      - todo-dev
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+      targetLabel: app_name
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: frontend-servicemonitor
+  namespace: monitoring
+  labels:
+    app: frontend-servicemonitor
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: todo-frontend
+  namespaceSelector:
+    matchNames:
+      - todo
+      - todo-dev
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+      targetLabel: app_name

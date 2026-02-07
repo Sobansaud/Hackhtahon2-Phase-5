@@ -1,0 +1,199 @@
+# Dapr-Enhanced Task Management API Contract
+
+## Overview
+This API contract defines the task management endpoints that integrate with Dapr for event streaming and state management. All operations are designed to work with the Dapr pub/sub and state building blocks.
+
+## Base Path
+All endpoints are relative to the application base URL.
+
+## Event Streams
+All task operations trigger corresponding events in Kafka topics:
+- `task-events`: Task lifecycle events (created, updated, deleted, completed)
+- `reminders`: Reminder trigger events for due dates
+- `task-updates`: Real-time sync preparation events
+
+## Endpoints
+
+### Create Task
+- **Method**: POST
+- **Path**: `/api/tasks`
+- **Description**: Creates a new task and publishes a `task-created` event to Kafka via Dapr pub/sub
+- **Request Body**:
+  ```json
+  {
+    "title": "string",
+    "description": "string",
+    "dueDate": "datetime (optional)",
+    "priority": "enum: low, medium, high, urgent (optional, default: medium)",
+    "tags": "array of strings (optional)",
+    "recurrence": "string (optional, cron expression)"
+  }
+  ```
+- **Response**:
+  - 201 Created: Task created successfully
+    ```json
+    {
+      "id": "string",
+      "title": "string",
+      "description": "string",
+      "createdAt": "datetime",
+      "updatedAt": "datetime",
+      "status": "enum: pending, in-progress, completed",
+      "dueDate": "datetime (nullable)",
+      "priority": "enum: low, medium, high, urgent",
+      "tags": "array of strings",
+      "recurrence": "string (nullable)"
+    }
+    ```
+  - 400 Bad Request: Invalid input
+  - 500 Internal Server Error: Failed to publish event via Dapr
+
+### Get All Tasks
+- **Method**: GET
+- **Path**: `/api/tasks`
+- **Description**: Retrieves all tasks from the state store via Dapr state management
+- **Query Parameters**:
+  - `status`: Filter by status (pending, in-progress, completed)
+  - `priority`: Filter by priority (low, medium, high, urgent)
+  - `tag`: Filter by tag
+  - `sort`: Sort by (createdAt, updatedAt, dueDate, priority)
+  - `order`: Sort order (asc, desc)
+- **Response**:
+  - 200 OK: List of tasks retrieved successfully
+    ```json
+    [
+      {
+        "id": "string",
+        "title": "string",
+        "description": "string",
+        "createdAt": "datetime",
+        "updatedAt": "datetime",
+        "status": "enum: pending, in-progress, completed",
+        "dueDate": "datetime (nullable)",
+        "priority": "enum: low, medium, high, urgent",
+        "tags": "array of strings",
+        "recurrence": "string (nullable)"
+      }
+    ]
+    ```
+
+### Get Task by ID
+- **Method**: GET
+- **Path**: `/api/tasks/{id}`
+- **Description**: Retrieves a specific task from the state store via Dapr state management
+- **Parameters**:
+  - `id`: Task ID (path parameter)
+- **Response**:
+  - 200 OK: Task retrieved successfully
+    ```json
+    {
+      "id": "string",
+      "title": "string",
+      "description": "string",
+      "createdAt": "datetime",
+      "updatedAt": "datetime",
+      "status": "enum: pending, in-progress, completed",
+      "dueDate": "datetime (nullable)",
+      "priority": "enum: low, medium, high, urgent",
+      "tags": "array of strings",
+      "recurrence": "string (nullable)"
+    }
+    ```
+  - 404 Not Found: Task not found
+
+### Update Task
+- **Method**: PUT
+- **Path**: `/api/tasks/{id}`
+- **Description**: Updates a task and publishes a `task-updated` event to Kafka via Dapr pub/sub
+- **Parameters**:
+  - `id`: Task ID (path parameter)
+- **Request Body**:
+  ```json
+  {
+    "title": "string (optional)",
+    "description": "string (optional)",
+    "status": "enum: pending, in-progress, completed (optional)",
+    "dueDate": "datetime (optional)",
+    "priority": "enum: low, medium, high, urgent (optional)",
+    "tags": "array of strings (optional)",
+    "recurrence": "string (optional)"
+  }
+  ```
+- **Response**:
+  - 200 OK: Task updated successfully
+    ```json
+    {
+      "id": "string",
+      "title": "string",
+      "description": "string",
+      "createdAt": "datetime",
+      "updatedAt": "datetime",
+      "status": "enum: pending, in-progress, completed",
+      "dueDate": "datetime (nullable)",
+      "priority": "enum: low, medium, high, urgent",
+      "tags": "array of strings",
+      "recurrence": "string (nullable)"
+    }
+    ```
+  - 404 Not Found: Task not found
+  - 500 Internal Server Error: Failed to publish event via Dapr
+
+### Delete Task
+- **Method**: DELETE
+- **Path**: `/api/tasks/{id}`
+- **Description**: Deletes a task and publishes a `task-deleted` event to Kafka via Dapr pub/sub
+- **Parameters**:
+  - `id`: Task ID (path parameter)
+- **Response**:
+  - 204 No Content: Task deleted successfully
+  - 404 Not Found: Task not found
+  - 500 Internal Server Error: Failed to publish event via Dapr
+
+### Complete Task
+- **Method**: PATCH
+- **Path**: `/api/tasks/{id}/complete`
+- **Description**: Marks a task as completed and publishes a `task-completed` event to Kafka via Dapr pub/sub
+- **Parameters**:
+  - `id`: Task ID (path parameter)
+- **Response**:
+  - 200 OK: Task marked as completed
+    ```json
+    {
+      "id": "string",
+      "title": "string",
+      "description": "string",
+      "createdAt": "datetime",
+      "updatedAt": "datetime",
+      "status": "completed",
+      "completedAt": "datetime"
+    }
+    ```
+  - 404 Not Found: Task not found
+  - 500 Internal Server Error: Failed to publish event via Dapr
+
+### Search Tasks
+- **Method**: GET
+- **Path**: `/api/tasks/search`
+- **Description**: Searches tasks based on multiple criteria
+- **Query Parameters**:
+  - `q`: Search query string
+  - `status`: Filter by status
+  - `priority`: Filter by priority
+  - `tag`: Filter by tag
+  - `dueDateFrom`: Filter by due date range start
+  - `dueDateTo`: Filter by due date range end
+  - `sort`: Sort by field
+  - `order`: Sort order (asc, desc)
+  - `page`: Page number (default: 1)
+  - `limit`: Items per page (default: 10)
+- **Response**:
+  - 200 OK: Search results
+    ```json
+    {
+      "items": [...],
+      "total": "integer",
+      "page": "integer",
+      "limit": "integer",
+      "pages": "integer"
+    }
+    ```

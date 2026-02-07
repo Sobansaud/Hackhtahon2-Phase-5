@@ -1,0 +1,75 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Kafka Event Processing Metrics",
+    "tags": ["kafka", "events", "streaming"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Kafka Topic Messages",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kafka_topic_partition_current_offset",
+            "legendFormat": "{{topic}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Messages"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Message Rate by Topic",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(kafka_topic_partition_current_offset[5m])",
+            "legendFormat": "{{topic}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Messages/sec"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Consumer Lag",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "kafka_consumer_group_lag",
+            "legendFormat": "{{consumer_group}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Lag (messages)"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Kafka Brokers",
+        "type": "singlestat",
+        "targets": [
+          {
+            "expr": "count(kafka_broker_info)",
+            "legendFormat": "Active Brokers"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}

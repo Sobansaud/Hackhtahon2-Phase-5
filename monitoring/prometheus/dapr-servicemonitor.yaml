@@ -1,0 +1,54 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dapr-servicemonitor
+  namespace: monitoring
+  labels:
+    app: dapr-servicemonitor
+spec:
+  selector:
+    matchLabels:
+      dapr.io/enabled: "true"
+  namespaceSelector:
+    matchNames:
+      - todo
+      - todo-dev
+  endpoints:
+  - port: dapr-http
+    path: /v1.0/metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_pod_label_dapr_io_app_id]
+      targetLabel: app_id
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: dapr-system-servicemonitor
+  namespace: monitoring
+  labels:
+    app: dapr-system-servicemonitor
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/part-of: dapr
+  namespaceSelector:
+    matchNames:
+      - dapr-system
+  endpoints:
+  - port: http
+    path: /metrics
+    interval: 30s
+    scrapeTimeout: 10s
+    relabelings:
+    - sourceLabels: [__meta_kubernetes_pod_name]
+      targetLabel: pod
+    - sourceLabels: [__meta_kubernetes_namespace]
+      targetLabel: namespace
+    - sourceLabels: [__meta_kubernetes_pod_label_app]
+      targetLabel: component

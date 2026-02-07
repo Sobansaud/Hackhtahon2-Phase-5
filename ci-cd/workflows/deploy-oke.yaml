@@ -1,0 +1,214 @@
+name: Deploy to Oracle OKE with Dapr Integration
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+env:
+  DOCKER_REGISTRY: ${{ secrets.DOCKERHUB_USERNAME }}
+  BACKEND_IMAGE: todo-backend
+  FRONTEND_IMAGE: todo-frontend
+  CLUSTER_NAMESPACE: todo
+  DEPLOYMENT_NAME: todo-app
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKERHUB_USERNAME }}
+        password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+    - name: Extract metadata for backend
+      id: meta-backend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_REGISTRY }}/${{ env.BACKEND_IMAGE }}
+        tags: |
+          type=sha,prefix={{branch}}-,format=short
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Extract metadata for frontend
+      id: meta-frontend
+      uses: docker/metadata-action@v5
+      with:
+        images: ${{ env.DOCKER_REGISTRY }}/${{ env.FRONTEND_IMAGE }}
+        tags: |
+          type=sha,prefix={{branch}}-,format=short
+          type=raw,value=latest,enable={{is_default_branch}}
+
+    - name: Build and push backend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./backend
+        file: ./backend/Dockerfile
+        push: true
+        tags: ${{ steps.meta-backend.outputs.tags }}
+        labels: ${{ steps.meta-backend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Build and push frontend image
+      uses: docker/build-push-action@v5
+      with:
+        context: ./frontend
+        file: ./frontend/Dockerfile
+        push: true
+        tags: ${{ steps.meta-frontend.outputs.tags }}
+        labels: ${{ steps.meta-frontend.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Set up Helm
+      uses: azure/setup-helm@v3
+      with:
+        version: 'latest'
+
+    - name: Set up OCI CLI
+      uses: oracle-actions/setup-oci-cli@v1
+      with:
+        tenancy-id: ${{ secrets.OCI_TENANCY_ID }}
+        user-id: ${{ secrets.OCI_USER_ID }}
+        region: ${{ secrets.OCI_REGION }}
+        private-key: ${{ secrets.OCI_PRIVATE_KEY }}
+
+    - name: Get OKE cluster credentials
+      run: |
+        oci ce cluster create-kubeconfig --cluster-id ${{ secrets.OKE_CLUSTER_ID }} --file $HOME/.kube/config --region ${{ secrets.OCI_REGION }}
+
+    - name: Verify kubectl connection
+      run: |
+        kubectl cluster-info
+        kubectl get nodes
+
+    - name: Create namespace if not exists
+      run: |
+        kubectl create namespace ${{ env.CLUSTER_NAMESPACE }} --dry-run=client -o yaml | kubectl apply -f -
+        kubectl label namespace ${{ env.CLUSTER_NAMESPACE }} dapr.io/enabled=true --overwrite
+
+    - name: Apply Dapr components
+      run: |
+        kubectl apply -f ./dapr-components/pubsub-kafka.yaml -n ${{ env.CLUSTER_NAMESPACE }}
+        kubectl apply -f ./dapr-components/statestore-postgres.yaml -n ${{ env.CLUSTER_NAMESPACE }}
+        kubectl apply -f ./dapr-components/secretstore-k8s.yaml -n ${{ env.CLUSTER_NAMESPACE }}
+        kubectl apply -f ./dapr-components/bindings-cron.yaml -n ${{ env.CLUSTER_NAMESPACE }}
+        echo "Waiting for Dapr components to be ready..."
+        sleep 10
+
+    - name: Deploy to OKE using Helm with Dapr integration
+      run: |
+        # Deploy backend with Dapr annotations
+        helm upgrade --install todo-backend ./charts/todo-backend \
+          --namespace ${{ env.CLUSTER_NAMESPACE }} \
+          --create-namespace \
+          --set image.repository=${{ env.DOCKER_REGISTRY }}/${{ env.BACKEND_IMAGE }} \
+          --set image.tag=${{ github.sha }} \
+          --set dapr.enabled=true \
+          --set dapr.appId=todo-backend \
+          --set dapr.appPort=8000 \
+          --wait \
+          --timeout=10m
+
+        # Deploy frontend with Dapr annotations
+        helm upgrade --install todo-frontend ./charts/todo-frontend \
+          --namespace ${{ env.CLUSTER_NAMESPACE }} \
+          --set image.repository=${{ env.DOCKER_REGISTRY }}/${{ env.FRONTEND_IMAGE }} \
+          --set image.tag=${{ github.sha }} \
+          --set dapr.enabled=true \
+          --set dapr.appId=todo-frontend \
+          --set dapr.appPort=3000 \
+          --wait \
+          --timeout=10m
+
+    - name: Verify deployment
+      run: |
+        echo "Verifying deployments..."
+        kubectl get pods -n ${{ env.CLUSTER_NAMESPACE }}
+        kubectl get services -n ${{ env.CLUSTER_NAMESPACE }}
+
+        # Wait for deployments to be ready
+        kubectl rollout status deployment/todo-backend -n ${{ env.CLUSTER_NAMESPACE }} --timeout=300s
+        kubectl rollout status deployment/todo-frontend -n ${{ env.CLUSTER_NAMESPACE }} --timeout=300s
+
+        # Verify Dapr sidecars
+        echo "Checking for Dapr sidecars..."
+        for pod in $(kubectl get pods -n ${{ env.CLUSTER_NAMESPACE }} -o jsonpath='{.items[*].metadata.name}'); do
+          CONTAINER_COUNT=$(kubectl get pod $pod -n ${{ env.CLUSTER_NAMESPACE }} -o jsonpath='{.spec.containers[*].name}' | wc -w)
+          if [ $CONTAINER_COUNT -ge 2 ]; then
+            echo "✓ Pod $pod has Dapr sidecar"
+          else
+            echo "⚠ Pod $pod may not have Dapr sidecar"
+          fi
+        done
+
+    - name: Run deployment verification tests
+      run: |
+        echo "Running post-deployment verification tests..."
+        # Add any health check or smoke tests here
+        kubectl get all -n ${{ env.CLUSTER_NAMESPACE }}
+
+    - name: Slack Notification
+      if: always()
+      uses: 8398a7/action-slack@v3
+      with:
+        status: ${{ job.status }}
+        channel: '#deployments'
+        webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+        username: GitHub Actions
+
+  rollback:
+    needs: build-and-deploy
+    if: failure() && (github.event_name == 'push' || github.event_name == 'schedule')
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v3
+      with:
+        version: 'latest'
+
+    - name: Set up OCI CLI
+      uses: oracle-actions/setup-oci-cli@v1
+      with:
+        tenancy-id: ${{ secrets.OCI_TENANCY_ID }}
+        user-id: ${{ secrets.OCI_USER_ID }}
+        region: ${{ secrets.OCI_REGION }}
+        private-key: ${{ secrets.OCI_PRIVATE_KEY }}
+
+    - name: Get OKE cluster credentials
+      run: |
+        oci ce cluster create-kubeconfig --cluster-id ${{ secrets.OKE_CLUSTER_ID }} --file $HOME/.kube/config --region ${{ secrets.OCI_REGION }}
+
+    - name: Rollback deployment
+      run: |
+        echo "Initiating rollback procedure..."
+        # Rollback to previous version if available
+        if helm status todo-backend -n todo >/dev/null 2>&1; then
+          helm rollback todo-backend -n todo --timeout=5m || echo "Rollback may have failed, manual intervention required"
+        fi
+
+        if helm status todo-frontend -n todo >/dev/null 2>&1; then
+          helm rollback todo-frontend -n todo --timeout=5m || echo "Rollback may have failed, manual intervention required"
+        fi
+
+        echo "Rollback completed. Please verify the application status."

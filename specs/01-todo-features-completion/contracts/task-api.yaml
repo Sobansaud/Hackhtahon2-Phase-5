@@ -1,0 +1,298 @@
+openapi: 3.0.3
+info:
+  title: Todo Task API
+  description: API for managing todo tasks with advanced features
+  version: 1.0.0
+servers:
+  - url: http://localhost:8000
+    description: Development server
+
+paths:
+  /api/tasks:
+    get:
+      summary: Get all tasks with optional filtering, searching, and sorting
+      parameters:
+        - name: search
+          in: query
+          description: Keyword search in title/description
+          required: false
+          schema:
+            type: string
+        - name: filter_status
+          in: query
+          description: Filter by completion status
+          required: false
+          schema:
+            type: string
+            enum: [all, pending, completed]
+            default: all
+        - name: filter_priority
+          in: query
+          description: Filter by priority level
+          required: false
+          schema:
+            type: string
+            enum: [all, High, Medium, Low]
+        - name: filter_tag
+          in: query
+          description: Filter by tag (can be multiple)
+          required: false
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: Sort order
+          required: false
+          schema:
+            type: string
+            enum: [due_date_asc, due_date_desc, priority_asc, priority_desc, title_asc, title_desc, created_at_asc, created_at_desc]
+            default: created_at_desc
+        - name: page
+          in: query
+          description: Page number for pagination
+          required: false
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          description: Number of items per page
+          required: false
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          description: List of tasks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  tasks:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Task'
+                  total:
+                    type: integer
+                  page:
+                    type: integer
+                  has_more:
+                    type: boolean
+    post:
+      summary: Create a new task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskCreate'
+      responses:
+        '201':
+          description: Task created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/tasks/{id}:
+    get:
+      summary: Get a specific task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Task details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+    put:
+      summary: Update a specific task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TaskUpdate'
+      responses:
+        '200':
+          description: Task updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+        '422':
+          description: Validation error
+    delete:
+      summary: Delete a specific task
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Task deleted successfully
+        '404':
+          description: Task not found
+
+  /api/tasks/{id}/complete:
+    patch:
+      summary: Mark a task as completed
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Task marked as completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '404':
+          description: Task not found
+        '422':
+          description: Cannot complete task (validation error)
+
+components:
+  schemas:
+    Task:
+      type: object
+      required:
+        - id
+        - title
+        - is_completed
+        - created_at
+      properties:
+        id:
+          type: integer
+          description: Unique identifier for the task
+        title:
+          type: string
+          maxLength: 255
+          description: Task title
+        description:
+          type: string
+          maxLength: 1000
+          description: Detailed task description
+        is_completed:
+          type: boolean
+          description: Completion status
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp of task creation
+        priority:
+          type: string
+          enum: [High, Medium, Low]
+          default: Medium
+          description: Task priority level
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 10
+          description: Array of tags associated with the task
+        due_date:
+          type: string
+          pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+          description: Due date in YYYY-MM-DD format
+        recurrence:
+          type: string
+          enum: [daily, weekly, monthly, none]
+          description: Recurrence pattern
+        is_overdue:
+          type: boolean
+          description: Whether the task is overdue (calculated property)
+
+    TaskCreate:
+      type: object
+      required:
+        - title
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        priority:
+          type: string
+          enum: [High, Medium, Low]
+          default: Medium
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 10
+        due_date:
+          type: string
+          pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+        recurrence:
+          type: string
+          enum: [daily, weekly, monthly, none]
+          default: none
+
+    TaskUpdate:
+      type: object
+      properties:
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        priority:
+          type: string
+          enum: [High, Medium, Low]
+        tags:
+          type: array
+          items:
+            type: string
+            maxLength: 50
+          maxItems: 10
+        due_date:
+          type: string
+          pattern: '^\\d{4}-\\d{2}-\\d{2}$'
+        recurrence:
+          type: string
+          enum: [daily, weekly, monthly, none]
+        is_completed:
+          type: boolean
+
+    Error:
+      type: object
+      required:
+        - detail
+      properties:
+        detail:
+          type: string
+          description: Error details

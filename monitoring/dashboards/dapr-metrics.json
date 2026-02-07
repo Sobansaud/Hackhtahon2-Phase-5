@@ -1,0 +1,92 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Dapr Runtime Metrics",
+    "tags": ["dapr", "runtime"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Dapr Sidecar Health",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "up{job=\"dapr-system\"}",
+            "legendFormat": "{{instance}} - Dapr Sidecar"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Status"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "Dapr Service Invocations",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(dapr_grpc_io_recv_msg_count[5m])",
+            "legendFormat": "Messages Received"
+          },
+          {
+            "expr": "rate(dapr_grpc_io_send_msg_count[5m])",
+            "legendFormat": "Messages Sent"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Messages/sec"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Dapr State Store Operations",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(dapr_state_get_operations_total[5m])",
+            "legendFormat": "GET Operations"
+          },
+          {
+            "expr": "rate(dapr_state_set_operations_total[5m])",
+            "legendFormat": "SET Operations"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Operations/sec"
+          }
+        ]
+      },
+      {
+        "id": 4,
+        "title": "Dapr Pub/Sub Messages",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(dapr_pubsub_message_received_total[5m])",
+            "legendFormat": "Messages Received"
+          },
+          {
+            "expr": "rate(dapr_pubsub_message_sent_total[5m])",
+            "legendFormat": "Messages Sent"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Messages/sec"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}

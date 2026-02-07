@@ -1,0 +1,32 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: pubsub
+spec:
+  type: pubsub.kafka
+  version: v1
+  metadata:
+  - name: brokers # Required. Kafka broker connection setting
+    secretKeyRef:
+      name: redpanda-secret
+      key: brokers
+  - name: consumerGroup # Optional. Used for input bindings.
+    value: "todo-app-group"
+  - name: clientID # Optional. Used as client tracing id by Kafka brokers.
+    value: "todo-app-client"
+  - name: authRequired # Required. Whether OAuth2 or SASL authentication is required.
+    value: "true"
+  - name: saslUsername # Required if authRequired is true.
+    secretKeyRef:
+      name: redpanda-secret
+      key: sasl-username
+  - name: saslPassword # Required if authRequired is true.
+    secretKeyRef:
+      name: redpanda-secret
+      key: sasl-password
+  - name: saslMechanism # Optional. Defaults to PLAIN.
+    value: "PLAIN"
+  - name: maxMessageBytes # Optional. Represents the maximum number of bytes accepted.
+    value: 1024
+  - name: consumeRetryInterval # Optional. Represent the duration to wait before retrying to consume again.
+    value: 1s

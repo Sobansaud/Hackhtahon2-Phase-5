@@ -1,0 +1,59 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Todo Application Metrics",
+    "tags": ["todo", "application"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "Task Operations",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "rate(todo_task_operations_total[5m])",
+            "legendFormat": "{{operation}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Operations/sec"
+          }
+        ]
+      },
+      {
+        "id": 2,
+        "title": "HTTP Request Latency",
+        "type": "graph",
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, rate(todo_http_request_duration_seconds_bucket[5m]))",
+            "legendFormat": "{{handler}}"
+          }
+        ],
+        "yAxes": [
+          {
+            "label": "Latency (seconds)"
+          }
+        ]
+      },
+      {
+        "id": 3,
+        "title": "Active Users",
+        "type": "singlestat",
+        "targets": [
+          {
+            "expr": "todo_active_users",
+            "legendFormat": "Active Users"
+          }
+        ]
+      }
+    ],
+    "time": {
+      "from": "now-6h",
+      "to": "now"
+    },
+    "refresh": "5s"
+  }
+}

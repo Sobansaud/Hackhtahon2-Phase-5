@@ -1,0 +1,24 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: statestore
+spec:
+  type: state.postgresql
+  version: v1
+  metadata:
+  - name: connectionString # Required. Connection string to connect to the PostgreSQL database.
+    secretKeyRef:
+      name: database-secret
+      key: connection-string
+  - name: actorStateStore # Optional. Default: false. Consider this as the state store for actors.
+    value: "true"
+  - name: keyPrefix # Optional. Default: "".
+    value: "none"
+  - name: versioning
+    value: "column"
+  - name: tableName
+    value: "state_store"
+  - name: connectionMaxIdleTime
+    value: "0s"
+  - name: connectionMaxLifetime
+    value: "0s"
